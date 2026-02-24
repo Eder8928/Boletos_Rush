@@ -192,16 +192,23 @@
         }
 
         function animarCenario(){
-            const bgDiv = document.getElementById("bg");
-            if(cenarioInterval) clearInterval(cenarioInterval);
-            cenarioInterval = setInterval(() => {
-                let vel = 3 + (nivel * 1.5);
-                bgPosX -= vel;
-                let nC = nivel > 3 ? 3 : nivel;
-                bgDiv.style.backgroundImage = `url('${cenarios[nC][0]}'), url('${cenarios[nC][1]}')`;
-                bgDiv.style.backgroundPosition = `${bgPosX}px 0, ${bgPosX + 600}px 0`;
-                if(bgPosX <= -600) bgPosX = 0;
-            }, 30);
+    const bgDiv = document.getElementById("bg");
+    if(cenarioInterval) clearInterval(cenarioInterval);
+    cenarioInterval = setInterval(() => {
+        let vel = 3 + (nivel * 1.5);
+        bgPosX -= vel;
+        let nC = nivel > 3 ? 3 : nivel;
+        
+        // Aplica as duas imagens
+        bgDiv.style.backgroundImage = `url('${cenarios[nC][0]}'), url('${cenarios[nC][1]}')`;
+        
+        // CORREÇÃO: Usa 'px' e garante que a segunda imagem (600px) comece exatamente após a primeira
+        bgDiv.style.backgroundPosition = bgPosX + "px 0px, " + (bgPosX + 600) + "px 0px";
+        
+        // Reinicia o ciclo ao atingir o fim da primeira imagem
+        if(bgPosX <= -600) bgPosX = 0;
+    }, 30);
+}
         }
 
         function criarBoleto(){
