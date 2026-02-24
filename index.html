@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Boletos Rush - Eder Rodrigues Edition</title>
+    <style>
+        body { margin:0; background:#111; color:#fff; font-family: 'Segoe UI', sans-serif; text-align:center; overflow: hidden; touch-action: none; user-select: none; }
+        
+        #game { 
+            width: 100vw; height: 100vh; max-width: 600px; max-height: 400px;
+            margin: auto; border: 2px solid #f1c40f; position: relative;
+            overflow: hidden; background-color: #222;
+        }
+
+        .bg-layer {
+            position: absolute; top: 0; left: 0; width: 1200px; height: 100%;
+            background-repeat: repeat-x; background-size: 600px 100%;
+            z-index: 1; pointer-events: none;
+        }
+
+        #ui-top { position:absolute; width: 100%; padding: 10px; display: flex; justify-content: space-between; z-index: 10; box-sizing: border-box; pointer-events: none;}
+        .stat { font-size:14px; font-weight:bold; text-shadow: 2px 2px #000; background: rgba(0,0,0,0.6); padding: 4px 8px; border-radius: 5px; }
+        
+        #player { position:absolute; bottom:150px; left:200px; width:65px; height:auto; z-index: 5; transition: bottom 0.15s ease-out, left 0.15s ease-out; }
+        
+        /* Boleto em 23px conforme solicitado */
+        .boleto { position:absolute; width:23px; height:auto; z-index: 4; }
+        
+        .moeda { position:absolute; width:25px; height:25px; z-index: 4; font-size: 20px; animation: coinSpin 0.6s infinite linear; }
+        
+        @keyframes coinSpin { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
+
+        .screen { 
+            display:none; position:absolute; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.95); color:#fff; justify-content:center; align-items:center; flex-direction:column; z-index: 40; 
+        }
+
+        #splashScreen { display: flex; background-image: url('BoletosRushInicialBG_VERT.png'); background-size: cover; background-position: center; }
+        
+        button { padding:12px 25px; font-size:18px; cursor:pointer; background: #f1c40f; border: none; border-radius: 8px; font-weight: bold; color: #000; transition: 0.2s; }
+        button:active { transform: scale(0.9); }
+        input { padding: 10px; margin: 10px; border-radius: 5px; border: none; text-align: center; font-size: 16px; }
+
+        .copyright-final {
+            font-size: 11px;
+            color: #f1c40f;
+            margin-top: 20px;
+            letter-spacing: 1px;
+            opacity: 0.8;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game">
+        <div id="ui-top">
+            <div><span id="score-display" class="stat">0</span> <span id="moedas-display" class="stat">💰 0</span></div>
+            <span id="nivel-tag" class="stat">Iniciante</span>
+            <span id="vidas-display" class="stat">❤️❤️❤️</span>
+        </div>
+        
+        <div id="bg" class="bg-layer"></div>
+        <img id="player" src="TrabalhadorCorrendoDireita1Pobre.png">
+
+        <div id="splashScreen" class="screen">
+            <div style="background:rgba(0,0,0,0.85); padding:30px; border-radius:15px; border: 2px solid #f1c40f;">
+                <h1 style="color:#f1c40f; margin:0 0 10px 0;">BOLETOS RUSH</h1>
+                <button onclick="fecharSplash()">ENTRAR</button>
+            </div>
+        </div>
+
+        <div id="startScreen" class="screen">
+            <button onclick="startGame(true)">COMEÇAR FUGA</button>
+        </div>
+
+        <div id="highScoreScreen" class="screen">
+            <h3 style="color:#f1c40f">NOVO RECORD!</h3>
+            <input type="text" id="username" placeholder="Seu Nome" maxlength="10">
+            <button onclick="salvarRanking()">SALVAR</button>
+        </div>
+
+        <div id="gameOverScreen" class="screen">
+            <h2 style="color:#ff4444; margin-bottom: 5px;">GAME OVER</h2>
+            <div id="ranking-container" style="margin-bottom: 15px; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; min-width: 200px;"></div>
+            <button onclick="startGame(true)">TENTAR NOVAMENTE</button>
+            
+            <div class="copyright-final">
+                © DESENVOLVIDO POR EDER RODRIGUES
+            </div>
+        </div>
+    </div>
+
+    <audio id="audiocena1" src="audiocena1.mp3" loop></audio>
+    <audio id="audiocena2" src="audiocena2.mp3" loop></audio>
+    <audio id="audiocena3" src="audiocena3.mp3" loop></audio>
+    <audio id="audiofalha" src="audiofalha.mp3"></audio>
+    <audio id="audiomoeda" src="audiomoeda.mp3"></audio>
+
+    <script>
+        let score=0, moedas=0, vidas=3, nivel=1, playerY=150, playerX=200, bgPosX=0;
+        let gameInterval, cenarioInterval, animacaoInterval, frameAtivo=0;
+        let boletos=[], moedasObjs=[], ranking = JSON.parse(localStorage.getItem('boletosRanking')) || [];
+
+        const sprites = {
+            1:["TrabalhadorCorrendoDireita1Pobre.png","TrabalhadorCorrendoDireita2Pobre.png"],
+            2:["TrabalhadorCorrendoDireita1.png","TrabalhadorCorrendoDireita2.png"],
+            3:["TrabalhadorCorrendoDireita1Terno.png","TrabalhadorCorrendoDireita2Terno.png"]
+        };
+
+        const cenarios = {
+            1:["BoletosRushBG1Periferia.png", "BoletosRushBG1PeriferiaEspelho.png"],
+            2:["BoletosRushBG2Cidade.png", "BoletosRushBG2CidadeEspelho.png"],
+            3:["BoletosRushBG3Praca.png", "BoletosRushBG3PracaEspelho.png"]
+        };
+
+        // CONTROLES PC (Setas)
+        document.addEventListener("keydown", e => {
+            const step = 50;
+            if(e.key === "ArrowUp") playerY = Math.min(320, playerY + step);
+            if(e.key === "ArrowDown") playerY = Math.max(10, playerY - step);
+            if(e.key === "ArrowRight") playerX = Math.min(500, playerX + step);
+            if(e.key === "ArrowLeft") playerX = Math.max(20, playerX - step);
+            atualizarPosicao();
+        });
+
+        // CONTROLES TOUCH/MOUSE (Seguir dedo)
+        const gameDiv = document.getElementById("game");
+        const handleMove = (e) => {
+            const rect = gameDiv.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            playerX = Math.min(500, Math.max(20, (clientX - rect.left) - 30));
+            playerY = Math.min(320, Math.max(10, (rect.bottom - clientY) - 30));
+            atualizarPosicao();
+        };
+
+        gameDiv.addEventListener("touchstart", (e) => { e.preventDefault(); handleMove(e); }, {passive: false});
+        gameDiv.addEventListener("touchmove", (e) => { e.preventDefault(); handleMove(e); }, {passive: false});
+        gameDiv.addEventListener("mousedown", (e) => {
+            const moveMouse = (ev) => handleMove(ev);
+            window.addEventListener("mousemove", moveMouse);
+            window.addEventListener("mouseup", () => window.removeEventListener("mousemove", moveMouse), {once:true});
+        });
+
+        function atualizarPosicao() {
+            const p = document.getElementById("player");
+            p.style.bottom = playerY + "px";
+            p.style.left = playerX + "px";
+        }
+
+        function fecharSplash() {
+            document.getElementById("splashScreen").style.display="none";
+            document.getElementById("startScreen").style.display="flex";
+        }
+
+        function startGame(full){
+            if(full){ score=0; moedas=0; vidas=3; nivel=1; playerY=150; playerX=200; }
+            limpar();
+            document.querySelectorAll(".screen").forEach(s => s.style.display="none");
+            atualizarPosicao();
+            gestaoAudio();
+            
+            gameInterval = setInterval(update, 100);
+            animacaoInterval = setInterval(() => {
+                frameAtivo = frameAtivo === 0 ? 1 : 0;
+                let nS = nivel > 3 ? 3 : nivel;
+                document.getElementById("player").src = sprites[nS][frameAtivo];
+            }, 120);
+            animarCenario();
+        }
+
+        function update() {
+            score += 2;
+            let nAnt = nivel;
+            nivel = Math.floor(score / 2000) + 1;
+            if(nivel !== nAnt) {
+                gestaoAudio();
+                document.getElementById("nivel-tag").innerText = nivel >= 4 ? "INSANO ⚡" : (nivel === 3 ? "Avançado" : (nivel === 2 ? "Intermediário" : "Iniciante"));
+            }
+
+            if(Math.random() < (0.05 + (nivel * 0.01))) criarBoleto();
+            if(Math.random() < 0.03) criarMoeda();
+
+            document.getElementById("score-display").innerText = score;
+            document.getElementById("moedas-display").innerText = "💰: " + moedas;
+            document.getElementById("vidas-display").innerText = "❤️".repeat(vidas);
+        }
+
+        function animarCenario(){
+            const bgDiv = document.getElementById("bg");
+            if(cenarioInterval) clearInterval(cenarioInterval);
+            cenarioInterval = setInterval(() => {
+                let vel = 3 + (nivel * 1.5);
+                bgPosX -= vel;
+                let nC = nivel > 3 ? 3 : nivel;
+                bgDiv.style.backgroundImage = `url('${cenarios[nC][0]}'), url('${cenarios[nC][1]}')`;
+                bgDiv.style.backgroundPosition = `${bgPosX}px 0, ${bgPosX + 600}px 0`;
+                if(bgPosX <= -600) bgPosX = 0;
+            }, 30);
+        }
+
+        function criarBoleto(){
+            const b = document.createElement("img");
+            b.src = "BoletoMal1.png";
+            b.className = "boleto";
+            b.style.top = Math.random() * 340 + "px";
+            b.style.left = "-60px";
+            document.getElementById("game").appendChild(b);
+
+            let x = -60;
+            let v = 4 + (nivel * 1.8); 
+            let m = setInterval(() => {
+                x += v;
+                b.style.left = x + "px";
+                if(colidiu(b, 12)) { clearInterval(m); b.remove(); hit(); }
+                if(x > 650) { clearInterval(m); b.remove(); }
+            }, 30);
+            boletos.push(m);
+        }
+
+        function criarMoeda(){
+            const mEl = document.createElement("div");
+            mEl.className = "moeda"; mEl.innerHTML = "💰";
+            mEl.style.top = Math.random() * 320 + "px";
+            mEl.style.left = "650px";
+            document.getElementById("game").appendChild(mEl);
+
+            let x = 650;
+            let mIv = setInterval(() => {
+                x -= 7;
+                mEl.style.left = x + "px";
+                if(colidiu(mEl, 15)) {
+                    moedas++; score += 100;
+                    document.getElementById("audiomoeda").play().catch(()=>{});
+                    clearInterval(mIv); mEl.remove();
+                }
+                if(x < -50) { clearInterval(mIv); mEl.remove(); }
+            }, 30);
+            moedasObjs.push(mIv);
+        }
+
+        function colidiu(obj, margem) {
+            let p = document.getElementById("player").getBoundingClientRect();
+            let o = obj.getBoundingClientRect();
+            return !(p.right-margem < o.left || p.left+margem > o.right || p.bottom-margem < o.top || p.top+margem > o.bottom);
+        }
+
+        function hit() {
+            vidas--;
+            document.getElementById("audiofalha").play().catch(()=>{});
+            parar();
+            if(vidas > 0) {
+                document.getElementById("player").style.filter = "brightness(5) sepia(1)";
+                setTimeout(() => { document.getElementById("player").style.filter = "none"; startGame(false); }, 800);
+            } else { verificarRanking(); }
+        }
+
+        function parar() {
+            clearInterval(gameInterval); clearInterval(cenarioInterval); clearInterval(animacaoInterval);
+            boletos.forEach(clearInterval); moedasObjs.forEach(clearInterval);
+        }
+
+        function limpar() {
+            document.querySelectorAll(".boleto, .moeda").forEach(e => e.remove());
+            boletos = []; moedasObjs = [];
+        }
+
+        function verificarRanking() {
+            let min = ranking.length < 5 ? 0 : ranking[ranking.length-1].pts;
+            if(score > min) document.getElementById("highScoreScreen").style.display="flex";
+            else mostrarRanking();
+        }
+
+        function salvarRanking() {
+            let n = document.getElementById("username").value || "Player";
+            ranking.push({nome: n, pts: score});
+            ranking.sort((a,b) => b.pts - a.pts);
+            ranking = ranking.slice(0, 5);
+            localStorage.setItem('boletosRanking', JSON.stringify(ranking));
+            mostrarRanking();
+        }
+
+        function mostrarRanking() {
+            document.getElementById("highScoreScreen").style.display="none";
+            let c = document.getElementById("ranking-container");
+            c.innerHTML = "<h3 style='color:#f1c40f; margin:5px;'>TOP 5</h3>" + ranking.map(r => `<div style="display:flex; justify-content:space-between; padding:2px 10px;"><span>${r.nome}</span><span>${r.pts}</span></div>`).join("");
+            document.getElementById("gameOverScreen").style.display="flex";
+        }
+
+        function gestaoAudio() {
+            [1,2,3].forEach(n => {
+                let a = document.getElementById("audiocena"+n);
+                if(n === Math.min(nivel, 3)) a.play().catch(()=>{});
+                else { a.pause(); a.currentTime = 0; }
+            });
+        }
+    </script>
+</body>
+</html>
