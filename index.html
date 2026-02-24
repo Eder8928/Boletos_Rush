@@ -16,9 +16,17 @@
         }
 
         .bg-layer {
-            position: absolute; top: 0; left: 0; width: 1200px; height: 100%;
-            background-repeat: repeat-x; background-size: 600px 100%;
-            z-index: 1; pointer-events: none;
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    /* Define que a Imagem 1 e a Imagem 2 (espelho) tenham 600px cada */
+    background-size: 600px 100%, 600px 100%; 
+    background-repeat: no-repeat; 
+    z-index: 1; 
+    pointer-events: none;
+}
         }
 
         #ui-top { position:absolute; width: 100%; padding: 10px; display: flex; justify-content: space-between; z-index: 10; box-sizing: border-box; pointer-events: none;}
